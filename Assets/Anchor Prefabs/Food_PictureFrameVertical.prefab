@@ -489,7 +489,7 @@ GameObject:
   - component: {fileID: 5762043968496923170}
   - component: {fileID: 7366553395967843916}
   m_Layer: 0
-  m_Name: Anchor_PictureFrameVertical
+  m_Name: Food_PictureFrameVertical
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
