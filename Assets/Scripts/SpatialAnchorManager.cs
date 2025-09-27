@@ -32,6 +32,10 @@ public class SpatialAnchorManager : MonoBehaviour
         SpawnPreview(); // create initial preview
     }
 
+    private void OnDestroy()
+    {
+        Debug.Log("Anchors:\n" + anchors);
+    }
     private void Update()
     {
     // Cycle through prefabs using the X button
@@ -70,8 +74,6 @@ public class SpatialAnchorManager : MonoBehaviour
             LoadSavedAnchors();
         }
         
-        // For moving the anchor closer and farther
-        AdjustOffsetWithThumbstick();
     }
 
 
@@ -215,35 +217,6 @@ public class SpatialAnchorManager : MonoBehaviour
 
         // Spawn a new preview for the next placement
         SpawnPreview();
-    }
-
-    private void AdjustOffsetWithThumbstick()
-    {
-        float vertical = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch).y;
-
-        if (Mathf.Abs(vertical) > deadzone)
-        {
-            // Handle preview offset
-            if (previewObject != null)
-            {
-                Transform offset = previewObject.transform.Find("Offset");
-                if (offset != null)
-                {
-                    offset.localPosition += new Vector3(0, 0, vertical * moveSpeed * Time.deltaTime);
-                    Debug.Log($"[Preview] Offset Z: {offset.localPosition.z:F2}");
-                }
-            }
-
-            foreach (var anchor in anchors)
-            {
-                Transform offset = anchor.transform.Find("Offset");
-                if (offset != null)
-                {
-                    offset.localPosition += new Vector3(0, 0, vertical * moveSpeed * Time.deltaTime);
-                    Debug.Log($"[Anchor] Offset Z: {offset.localPosition.z:F2}");
-                }
-            }
-        }
     }
 
     private void LoadSavedAnchors()
