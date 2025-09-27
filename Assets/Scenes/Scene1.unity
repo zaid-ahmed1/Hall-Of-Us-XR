@@ -7829,6 +7829,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d742724a0c8fa9a41ac16f75aab830ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  photoManager: {fileID: 1864518194}
+  downloadAllImages: 1
 --- !u!1 &1546460662
 GameObject:
   m_ObjectHideFlags: 0

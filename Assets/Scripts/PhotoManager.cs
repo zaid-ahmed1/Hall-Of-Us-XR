@@ -23,7 +23,7 @@ public class PhotosResponse
 
 public class PhotoManager : MonoBehaviour
 {
-    private const string endpoint = "http://lawn-128-61-74-223.lawn.gatech.edu:8000/photos";
+    private const string endpoint = "https://api.doubleehbatteries.com/photos";
 
     public List<Photo> photos = new List<Photo>();
 
@@ -57,6 +57,13 @@ public class PhotoManager : MonoBehaviour
                 {
                     photos = response.photos;
                     Debug.Log("Loaded " + photos.Count + " photos.");
+                    
+                    Debug.Log("=== PHOTO API FILENAMES ===");
+                    foreach (var photo in photos)
+                    {
+                        Debug.Log($"Photo filename: '{photo.id}'");
+                    }
+                    Debug.Log("=== END PHOTO FILENAMES ===");
                 }
                 else
                 {

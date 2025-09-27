@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using System.Linq;
+using System.IO;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class PhotoAnchorMatcher : MonoBehaviour
 {
@@ -60,6 +64,7 @@ public class PhotoAnchorMatcher : MonoBehaviour
         Debug.Log($"Starting to match {photoManager.photos.Count} photos to spatial anchors...");
         
         int matchedCount = 0;
+        HashSet<GameObject> usedAnchors = new HashSet<GameObject>(); // Track used anchors
         
         foreach (Photo photo in photoManager.photos)
         {
@@ -71,20 +76,23 @@ public class PhotoAnchorMatcher : MonoBehaviour
                 continue;
             }
             
-            GameObject anchorObject = FindAnchorByTag(firstTag);
+            GameObject anchorObject = FindUnusedAnchorByTag(firstTag, usedAnchors);
             
             if (anchorObject != null)
             {
-                bool success = UpdateAnchorText(anchorObject, firstTag);
-                if (success)
+                bool textSuccess = UpdateAnchorText(anchorObject, firstTag);
+                bool imageSuccess = UpdateAnchorImage(anchorObject, photo);
+                
+                if (textSuccess || imageSuccess)
                 {
+                    usedAnchors.Add(anchorObject); // Mark this anchor as used
                     matchedCount++;
-                    Debug.Log($"✅ Matched photo '{photo.filename}' with tag '{firstTag}' to anchor '{anchorObject.name}'");
+                    Debug.Log($"✅ Matched photo '{photo.filename}' with tag '{firstTag}' to anchor '{anchorObject.name}' (Text: {textSuccess}, Image: {imageSuccess})");
                 }
             }
             else
             {
-                Debug.LogWarning($"❌ No anchor found for tag '{firstTag}' from photo '{photo.filename}'");
+                Debug.LogWarning($"❌ No available anchor found for tag '{firstTag}' from photo '{photo.filename}' (may be all used)");
             }
         }
         
@@ -102,25 +110,61 @@ public class PhotoAnchorMatcher : MonoBehaviour
         return tagArray.Length > 0 ? tagArray[0].Trim() : null;
     }
     
-    private GameObject FindAnchorByTag(string tag)
+    private GameObject FindUnusedAnchorByTag(string tag, HashSet<GameObject> usedAnchors)
     {
-        // Find all GameObjects in the scene
+        // Find all GameObjects in the scene that match the tag
         GameObject[] allObjects = FindObjectsOfType<GameObject>();
+        
+        List<GameObject> matchingAnchors = new List<GameObject>();
         
         foreach (GameObject obj in allObjects)
         {
             // Check if the object name contains the tag (case insensitive)
             if (obj.name.ToLower().Contains(tag.ToLower()))
             {
-                // Verify it's actually a spatial anchor
-                if (obj.GetComponent<OVRSpatialAnchor>() != null)
+                // Verify it's actually a spatial anchor and not already used
+                if (obj.GetComponent<OVRSpatialAnchor>() != null && !usedAnchors.Contains(obj))
                 {
-                    return obj;
+                    matchingAnchors.Add(obj);
                 }
             }
         }
         
+        // Return the first unused matching anchor
+        if (matchingAnchors.Count > 0)
+        {
+            Debug.Log($"Found {matchingAnchors.Count} unused anchors for tag '{tag}', using: {matchingAnchors[0].name}");
+            return matchingAnchors[0];
+        }
+        
         return null;
+    }
+    
+    // Helper method to manually trigger matching from other scripts
+    public void TriggerMatching()
+    {
+        MatchPhotosToAnchors();
+    }
+    
+    // Method to match a specific photo to anchors
+    public bool MatchSpecificPhoto(Photo photo)
+    {
+        string firstTag = GetFirstTag(photo.tags);
+        
+        if (string.IsNullOrEmpty(firstTag))
+            return false;
+            
+        // For single photo matching, we don't track used anchors (use first match)
+        GameObject anchorObject = FindUnusedAnchorByTag(firstTag, new HashSet<GameObject>());
+        
+        if (anchorObject != null)
+        {
+            bool textSuccess = UpdateAnchorText(anchorObject, firstTag);
+            bool imageSuccess = UpdateAnchorImage(anchorObject, photo);
+            return textSuccess || imageSuccess;
+        }
+        
+        return false;
     }
     
     private bool UpdateAnchorText(GameObject anchorObject, string tagText)
@@ -161,27 +205,137 @@ public class PhotoAnchorMatcher : MonoBehaviour
         return false;
     }
     
-    // Helper method to manually trigger matching from other scripts
-    public void TriggerMatching()
+    private bool UpdateAnchorImage(GameObject anchorObject, Photo photo)
     {
-        MatchPhotosToAnchors();
-    }
-    
-    // Method to match a specific photo to anchors
-    public bool MatchSpecificPhoto(Photo photo)
-    {
-        string firstTag = GetFirstTag(photo.tags);
+        // Find the PictureRender child object
+        Transform pictureRenderTransform = FindChildByName(anchorObject.transform, "PictureRender");
         
-        if (string.IsNullOrEmpty(firstTag))
-            return false;
-            
-        GameObject anchorObject = FindAnchorByTag(firstTag);
-        
-        if (anchorObject != null)
+        if (pictureRenderTransform == null)
         {
-            return UpdateAnchorText(anchorObject, firstTag);
+            Debug.LogWarning($"No 'PictureRender' child found on anchor '{anchorObject.name}'");
+            return false;
         }
         
-        return false;
+        // Get the renderer component
+        Renderer renderer = pictureRenderTransform.GetComponent<Renderer>();
+        if (renderer == null)
+        {
+            Debug.LogWarning($"No Renderer component found on 'PictureRender' child of anchor '{anchorObject.name}'");
+            return false;
+        }
+        
+        // Get the local file path from S3 manager
+        string localImagePath = s3Manager.GetLocalPathForPhoto(photo);
+        if (string.IsNullOrEmpty(localImagePath) || !File.Exists(localImagePath))
+        {
+            Debug.LogWarning($"Image file not found for photo '{photo.filename}' at path: {localImagePath}");
+            return false;
+        }
+        
+        // Load and apply the texture
+        return LoadAndApplyTexture(renderer, localImagePath, photo.filename);
+    }
+    
+    private bool LoadAndApplyTexture(Renderer renderer, string imagePath, string filename)
+    {
+        try
+        {
+            // Read the image file as bytes
+            byte[] imageData = File.ReadAllBytes(imagePath);
+            
+            // Create a new texture
+            Texture2D texture = new Texture2D(2, 2); // Size will be overridden by LoadImage
+            
+            // Load the image data into the texture
+            if (texture.LoadImage(imageData))
+            {
+                // Apply to material - try common base map property names
+                Material material = renderer.material;
+                
+                // Try URP/HDRP base map first
+                if (material.HasProperty("_BaseMap"))
+                {
+                    material.SetTexture("_BaseMap", texture);
+                    Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property");
+                    return true;
+                }
+                // Try standard/builtin pipeline main texture
+                else if (material.HasProperty("_MainTex"))
+                {
+                    material.SetTexture("_MainTex", texture);
+                    Debug.Log($"✅ Applied texture '{filename}' to _MainTex property");
+                    return true;
+                }
+                else
+                {
+                    Debug.LogWarning($"Material on PictureRender doesn't have _BaseMap or _MainTex property.");
+                    #if UNITY_EDITOR
+                    // Debug log available properties (Editor only)
+                    var shader = material.shader;
+                    for (int i = 0; i < ShaderUtil.GetPropertyCount(shader); i++)
+                    {
+                        if (ShaderUtil.GetPropertyType(shader, i) == ShaderUtil.ShaderPropertyType.TexEnv)
+                        {
+                            Debug.Log($"  Available texture property: {ShaderUtil.GetPropertyName(shader, i)}");
+                        }
+                    }
+                    #endif
+                    return false;
+                }
+            }
+            else
+            {
+                Debug.LogError($"Failed to load image data for '{filename}'");
+                return false;
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error loading texture for '{filename}': {e.Message}");
+            return false;
+        }
+    }
+    
+    private Transform FindChildByName(Transform parent, string childName)
+    {
+        // Search all descendants recursively (breadth-first to find closest matches first)
+        Queue<Transform> searchQueue = new Queue<Transform>();
+        searchQueue.Enqueue(parent);
+        
+        while (searchQueue.Count > 0)
+        {
+            Transform current = searchQueue.Dequeue();
+            
+            // Check if this transform matches (skip the parent itself)
+            if (current != parent && current.name.Equals(childName, System.StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.Log($"Found '{childName}' at path: {GetTransformPath(current)}");
+                return current;
+            }
+            
+            // Add all children to the search queue
+            foreach (Transform child in current)
+            {
+                searchQueue.Enqueue(child);
+            }
+        }
+        
+        Debug.LogWarning($"Could not find child named '{childName}' in hierarchy of '{parent.name}'");
+        return null;
+    }
+    
+    // Helper method to show the full path for debugging
+    private string GetTransformPath(Transform transform)
+    {
+        string path = transform.name;
+        Transform parent = transform.parent;
+        
+        while (parent != null)
+        {
+            path = parent.name + "/" + path;
+            parent = parent.parent;
+        }
+        
+        return path;
     }
 }

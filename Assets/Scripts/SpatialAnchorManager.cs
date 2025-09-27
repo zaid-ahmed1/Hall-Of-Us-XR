@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
+using Unity.VisualScripting;
 
 [Serializable]
 public class AnchorData
@@ -36,6 +37,12 @@ public class SpatialAnchorManager : MonoBehaviour
     {
         Debug.Log("Anchors:\n" + anchors);
     }
+
+    void Start()
+    {
+        LoadSavedAnchors();
+    }
+
     private void Update()
     {
     // Cycle through prefabs using the X button
