@@ -58,6 +58,7 @@ public class SpatialAnchorManager : MonoBehaviour
                 inAnchorMode = true;
                 if (previewObject == null) SpawnPreview();
                 previewObject.SetActive(true); // Show preview
+                UpdateTagDisplayForPreview();                
                 Debug.Log("Entered Anchor Mode (stick down)");
             }
 
@@ -70,6 +71,7 @@ public class SpatialAnchorManager : MonoBehaviour
 
                 Destroy(previewObject);
                 SpawnPreview();
+                UpdateTagDisplayForPreview();
             }
 
             // Place anchor (Trigger)
@@ -246,6 +248,58 @@ public class SpatialAnchorManager : MonoBehaviour
         SpawnPreview();
     }
 
+    [Header("Tag Display")]
+    public TextMeshProUGUI tagDisplayText; // Assign this in inspector
+
+// Method to extract tag name from anchor name
+    public string GetTagFromAnchorName(string anchorName)
+    {
+        if (string.IsNullOrEmpty(anchorName))
+            return "";
+    
+        // Find the first asterisk and return everything before it
+        int asteriskIndex = anchorName.IndexOf('*');
+        if (asteriskIndex > 0)
+        {
+            return anchorName.Substring(0, asteriskIndex);
+        }
+    
+        // If no asterisk found, return the whole name
+        return anchorName;
+    }
+
+    // Method to update the text display with current anchor's tag
+    public void UpdateTagDisplay(OVRSpatialAnchor anchor)
+    {
+        if (anchor != null && tagDisplayText != null)
+        {
+            string tag = GetTagFromAnchorName(anchor.name);
+            tagDisplayText.text = tag;
+            Debug.Log($"Displaying tag: {tag} for anchor: {anchor.name}");
+        }
+    }
+
+    // Example usage - call this when you want to show a tag
+    public void ShowTagForAnchor(GameObject anchorObject)
+    {
+        OVRSpatialAnchor anchor = anchorObject.GetComponent<OVRSpatialAnchor>();
+        if (anchor != null)
+        {
+            UpdateTagDisplay(anchor);
+        }
+    }
+    
+    // Method to update tag display for the current preview object
+    private void UpdateTagDisplayForPreview()
+    {
+        if (previewObject != null && tagDisplayText != null)
+        {
+            string tag = GetTagFromAnchorName(previewObject.name);
+            tagDisplayText.text = tag;
+            Debug.Log($"Displaying preview tag: {tag} for preview: {previewObject.name}");
+        }
+    }
+    
     private void LoadSavedAnchors()
     {
         anchorLoader.LoadAnchorsByUuid();

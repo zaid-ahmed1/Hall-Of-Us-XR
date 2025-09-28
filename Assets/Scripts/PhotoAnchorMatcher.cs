@@ -76,7 +76,7 @@ public class PhotoAnchorMatcher : MonoBehaviour
                 continue;
             }
             
-            GameObject anchorObject = FindUnusedAnchorByTag(firstTag, usedAnchors);
+            GameObject anchorObject = FindUnusedAnchorByTagAndOrientation(firstTag, photo.is_vertical, usedAnchors);
             
             if (anchorObject != null)
             {
@@ -93,7 +93,7 @@ public class PhotoAnchorMatcher : MonoBehaviour
             }
             else
             {
-                Debug.LogWarning($"❌ No available anchor found for tag '{firstTag}' from photo '{photo.filename}' (may be all used)");
+                Debug.LogWarning($"❌ No available anchor found for tag '{firstTag}' and orientation '{(photo.is_vertical ? "vertical" : "horizontal")}' from photo '{photo.filename}' (may be all used)");
             }
         }
         
@@ -111,29 +111,34 @@ public class PhotoAnchorMatcher : MonoBehaviour
         return tagArray.Length > 0 ? tagArray[0].Trim() : null;
     }
     
-    private GameObject FindUnusedAnchorByTag(string tag, HashSet<GameObject> usedAnchors)
+    private GameObject FindUnusedAnchorByTagAndOrientation(string tag, bool is_vertical, HashSet<GameObject> usedAnchors)
     {
         // Find all GameObjects in the scene that match the tag
         GameObject[] allObjects = FindObjectsOfType<GameObject>();
         
         List<GameObject> matchingAnchors = new List<GameObject>();
+        string orientationKeyword = is_vertical ? "vertical" : "horizontal";
         
         foreach (GameObject obj in allObjects)
         {
             // Check if the object name contains the tag (case insensitive)
             if (obj.name.ToLower().Contains(tag.ToLower()))
             {
-                // Verify it's actually a spatial anchor and not already used
-                if (obj.GetComponent<OVRSpatialAnchor>() != null && !usedAnchors.Contains(obj))
+                // Also check if it contains the correct orientation keyword
+                if (obj.name.ToLower().Contains(orientationKeyword))
                 {
-                    // Skip preview objects (they have parents, real anchors don't)
-                    if (obj.transform.parent == null)
+                    // Verify it's actually a spatial anchor and not already used
+                    if (obj.GetComponent<OVRSpatialAnchor>() != null && !usedAnchors.Contains(obj))
                     {
-                        matchingAnchors.Add(obj);
-                    }
-                    else
-                    {
-                        Debug.Log($"Skipping preview object: {obj.name} (has parent: {obj.transform.parent.name})");
+                        // Skip preview objects (they have parents, real anchors don't)
+                        if (obj.transform.parent == null)
+                        {
+                            matchingAnchors.Add(obj);
+                        }
+                        else
+                        {
+                            Debug.Log($"Skipping preview object: {obj.name} (has parent: {obj.transform.parent.name})");
+                        }
                     }
                 }
             }
@@ -142,10 +147,11 @@ public class PhotoAnchorMatcher : MonoBehaviour
         // Return the first unused matching anchor
         if (matchingAnchors.Count > 0)
         {
-            Debug.Log($"Found {matchingAnchors.Count} unused anchors for tag '{tag}', using: {matchingAnchors[0].name}");
+            Debug.Log($"Found {matchingAnchors.Count} unused {orientationKeyword} anchors for tag '{tag}', using: {matchingAnchors[0].name}");
             return matchingAnchors[0];
         }
         
+        Debug.LogWarning($"No unused {orientationKeyword} anchors found for tag '{tag}'. Available anchors may not match orientation requirement.");
         return null;
     }
     
@@ -164,7 +170,7 @@ public class PhotoAnchorMatcher : MonoBehaviour
             return false;
             
         // For single photo matching, we don't track used anchors (use first match)
-        GameObject anchorObject = FindUnusedAnchorByTag(firstTag, new HashSet<GameObject>());
+        GameObject anchorObject = FindUnusedAnchorByTagAndOrientation(firstTag, photo.is_vertical, new HashSet<GameObject>());
         
         if (anchorObject != null)
         {
@@ -330,87 +336,42 @@ public class PhotoAnchorMatcher : MonoBehaviour
     {
         try
         {
-            // Read the image file as bytes
             byte[] imageData = File.ReadAllBytes(imagePath);
-            
-            // Create a new texture
-            Texture2D texture = new Texture2D(2, 2); // Size will be overridden by LoadImage
-            
-            // Load the image data into the texture
+            Texture2D texture = new Texture2D(2, 2);
+        
             if (texture.LoadImage(imageData))
             {
-                // Apply to material - try common base map property names
                 Material material = renderer.material;
-                
-                // Check if this is a plaque material and apply appropriate tiling/offset
-                bool isPlaqueMaterial = material.name.ToLower().Contains("plaque");
-                
-                // Try URP/HDRP base map first
+            
                 if (material.HasProperty("_BaseMap"))
                 {
                     material.SetTexture("_BaseMap", texture);
-                    
-                    // Apply different tiling/offset for plaques if needed
-                    if (isPlaqueMaterial)
-                    {
-                        // Plaque images are 800x400 (2:1 ratio) - adjust tiling to fit properly
-                        material.SetTextureScale("_BaseMap", new Vector2(1f, 0.5f)); // Scale Y to fit 2:1 ratio
-                        material.SetTextureOffset("_BaseMap", new Vector2(0f, 0.25f)); // Center vertically
-                        Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property (plaque material with 2:1 ratio)");
-                    }
-                    else
-                    {
-                        Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property (standard material)");
-                    }
+                
+                    // Reset tiling and offset to show full image
+                    material.SetTextureScale("_BaseMap", Vector2.one);
+                    material.SetTextureOffset("_BaseMap", Vector2.zero);
+                
+                    Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property with proper scaling");
                     return true;
                 }
-                // Try standard/builtin pipeline main texture
                 else if (material.HasProperty("_MainTex"))
                 {
                     material.SetTexture("_MainTex", texture);
-                    
-                    // Apply different tiling/offset for plaques if needed
-                    if (isPlaqueMaterial)
-                    {
-                        // Plaque images are 800x400 (2:1 ratio) - adjust tiling to fit properly
-                        material.SetTextureScale("_MainTex", new Vector2(1f, 0.5f)); // Scale Y to fit 2:1 ratio
-                        material.SetTextureOffset("_MainTex", new Vector2(0f, 0.25f)); // Center vertically
-                        Debug.Log($"✅ Applied texture '{filename}' to _MainTex property (plaque material with 2:1 ratio)");
-                    }
-                    else
-                    {
-                        Debug.Log($"✅ Applied texture '{filename}' to _MainTex property (standard material)");
-                    }
+                
+                    // Reset tiling and offset to show full image
+                    material.SetTextureScale("_MainTex", Vector2.one);
+                    material.SetTextureOffset("_MainTex", Vector2.zero);
+                
+                    Debug.Log($"✅ Applied texture '{filename}' to _MainTex property with proper scaling");
                     return true;
                 }
-                else
-                {
-                    Debug.LogWarning($"Material on {(isPlaqueMaterial ? "PlaqueRender" : "PictureRender")} doesn't have _BaseMap or _MainTex property.");
-                    #if UNITY_EDITOR
-                    // Debug log available properties (Editor only)
-                    var shader = material.shader;
-                    for (int i = 0; i < ShaderUtil.GetPropertyCount(shader); i++)
-                    {
-                        if (ShaderUtil.GetPropertyType(shader, i) == ShaderUtil.ShaderPropertyType.TexEnv)
-                        {
-                            Debug.Log($"  Available texture property: {ShaderUtil.GetPropertyName(shader, i)}");
-                        }
-                    }
-                    #endif
-                    return false;
-                }
-            }
-            else
-            {
-                Debug.LogError($"Failed to load image data for '{filename}'");
-                return false;
             }
         }
         catch (System.Exception e)
         {
             Debug.LogError($"Error loading texture for '{filename}': {e.Message}");
-            return false;
         }
+        return false;
     }
     
     private Transform FindChildByName(Transform parent, string childName)
