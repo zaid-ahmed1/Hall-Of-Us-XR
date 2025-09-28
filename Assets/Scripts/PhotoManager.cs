@@ -180,6 +180,25 @@ public class PhotoManager : MonoBehaviour
         return newPhotosThisSession.Contains(photoId);
     }
     
+    // NEW METHOD: Fetch photos specifically for new anchor matching
+    public IEnumerator FetchPhotosForNewAnchor()
+    {
+        Debug.Log("Fetching photos for new anchor matching...");
+        yield return StartCoroutine(FetchPhotos());
+        
+        // Check if any new photos were found and add them to session tracking
+        var newPhotos = photos.Where(p => !seenPhotoIds.Contains(p.id)).ToList();
+        if (newPhotos.Count > 0)
+        {
+            Debug.Log($"Found {newPhotos.Count} new photos during anchor creation!");
+            foreach (var photo in newPhotos)
+            {
+                seenPhotoIds.Add(photo.id);
+                newPhotosThisSession.Add(photo.id);
+            }
+        }
+    }
+    
     IEnumerator FetchPhotos()
     {
         using (UnityWebRequest request = UnityWebRequest.Get(endpoint))

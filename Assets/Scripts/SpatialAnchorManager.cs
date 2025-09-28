@@ -26,6 +26,12 @@ public class SpatialAnchorManager : MonoBehaviour
     private AnchorLoader anchorLoader;
     private int selectedPrefabIndex = 0;
 
+    [Header("Auto-Match References")]
+    public PhotoManager photoManager;
+    public S3 s3Manager;
+    public PhotoAnchorMatcher photoAnchorMatcher;
+    public bool autoMatchNewAnchors = true;
+
     private void Awake()
     {
         anchorLoader = GetComponent<AnchorLoader>();
@@ -144,6 +150,47 @@ public class SpatialAnchorManager : MonoBehaviour
                 texts[1].text = "Saved";
             }
         }
+
+        // NEW: Try to auto-match this new anchor with available content
+        if (autoMatchNewAnchors)
+        {
+            StartCoroutine(TryAutoMatchNewAnchor(anchor.gameObject));
+        }
+    }
+
+    private IEnumerator TryAutoMatchNewAnchor(GameObject newAnchor)
+    {
+        Debug.Log($"Attempting to auto-match new anchor: {newAnchor.name}");
+
+        // First, refresh photo data
+        if (photoManager != null)
+        {
+            Debug.Log("Refreshing photo data for new anchor...");
+            yield return StartCoroutine(photoManager.FetchPhotosForNewAnchor());
+        }
+
+        // Then check for new S3 files
+        if (s3Manager != null)
+        {
+            Debug.Log("Checking S3 for new files...");
+            yield return StartCoroutine(s3Manager.CheckForNewFilesForNewAnchor());
+        }
+
+        // Finally, try to match this specific anchor
+        if (photoAnchorMatcher != null)
+        {
+            Debug.Log("Attempting to match new anchor with available photos...");
+            bool matchSuccess = photoAnchorMatcher.TryMatchSpecificAnchor(newAnchor);
+            
+            if (matchSuccess)
+            {
+                Debug.Log($"Successfully matched new anchor {newAnchor.name} with content!");
+            }
+            else
+            {
+                Debug.Log($"No suitable content found for new anchor {newAnchor.name}");
+            }
+        }
     }
 
     private void SaveAnchorDataToPlayerPrefs(Guid uuid, int prefabIndex)
@@ -201,7 +248,7 @@ public class SpatialAnchorManager : MonoBehaviour
         foreach (var anchor in anchors)
         {
             anchor.Erase((erasedAnchor, success) => { });
-            Destroy(anchor.gameObject); // 🔹 also remove from scene
+            Destroy(anchor.gameObject); // also remove from scene
         }
 
         anchors.Clear();

@@ -224,6 +224,66 @@ public class PhotoAnchorMatcher : MonoBehaviour
         return null;
     }
     
+    // NEW METHOD: Try to match a specific anchor with available photos
+    public bool TryMatchSpecificAnchor(GameObject anchorObject)
+    {
+        if (photoManager == null || photoManager.photos == null || photoManager.photos.Count == 0)
+        {
+            Debug.LogWarning("No photos available to match with new anchor!");
+            return false;
+        }
+
+        // Extract tag from anchor name
+        string anchorTag = spatialAnchorManager.GetTagFromAnchorName(anchorObject.name);
+        
+        if (string.IsNullOrEmpty(anchorTag))
+        {
+            Debug.LogWarning($"Could not extract tag from anchor name: {anchorObject.name}");
+            return false;
+        }
+
+        // Determine anchor orientation from name
+        bool isVerticalAnchor = anchorObject.name.ToLower().Contains("vertical");
+        
+        Debug.Log($"Trying to match anchor '{anchorObject.name}' (tag: '{anchorTag}', vertical: {isVerticalAnchor})");
+
+        // Find photos that match this anchor's tag and orientation, prioritizing new ones
+        var matchingPhotos = photoManager.photos
+            .Where(p => {
+                string firstTag = GetFirstTag(p.tags);
+                return !string.IsNullOrEmpty(firstTag) && 
+                       firstTag.Equals(anchorTag, System.StringComparison.OrdinalIgnoreCase) &&
+                       p.is_vertical == isVerticalAnchor;
+            })
+            .OrderBy(p => photoManager.IsNewThisSession(p.id) ? 0 : 1) // New photos first
+            .ToList();
+
+        if (matchingPhotos.Count == 0)
+        {
+            Debug.LogWarning($"No photos found matching tag '{anchorTag}' and orientation '{(isVerticalAnchor ? "vertical" : "horizontal")}'");
+            return false;
+        }
+
+        // Try to match with the first (newest/best) matching photo
+        Photo photoToMatch = matchingPhotos[0];
+        
+        bool textSuccess = UpdateAnchorText(anchorObject, anchorTag);
+        bool imageSuccess = UpdateAnchorImage(anchorObject, photoToMatch);
+        bool plaqueSuccess = UpdateAnchorPlaque(anchorObject, photoToMatch);
+
+        if (textSuccess || imageSuccess || plaqueSuccess)
+        {
+            string newSessionIndicator = photoManager.IsNewThisSession(photoToMatch.id) ? " [NEW THIS SESSION]" : "";
+            Debug.Log($"Successfully matched new anchor '{anchorObject.name}' with photo '{photoToMatch.filename}'{newSessionIndicator} (Text: {textSuccess}, Image: {imageSuccess}, Plaque: {plaqueSuccess})");
+            return true;
+        }
+        else
+        {
+            Debug.LogWarning($"Failed to update anchor '{anchorObject.name}' with photo '{photoToMatch.filename}'");
+            return false;
+        }
+    }
+    
     // Helper method to manually trigger matching from other scripts
     public void TriggerMatching()
     {
