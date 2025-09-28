@@ -34,7 +34,7 @@ public class PlaqueProximityDetector : MonoBehaviour
     
     void OnTriggerExit(Collider other)
     {
-        if (other.CompareTag("Player") || other.name.Contains("CenterEyeAnchor"))
+        if (other.CompareTag("Player"))
         {
             HidePlaque();
         }

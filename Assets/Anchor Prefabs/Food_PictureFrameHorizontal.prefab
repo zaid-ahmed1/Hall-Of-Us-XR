@@ -66,7 +66,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5013e479b0974cb4b851ed6c20361c2d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  activationDistance: 2
 --- !u!1 &926165742843312677
 GameObject:
   m_ObjectHideFlags: 0
@@ -668,6 +667,8 @@ GameObject:
   m_Component:
   - component: {fileID: 7867419405682439489}
   - component: {fileID: 7785661821836058641}
+  - component: {fileID: 6869797126134925673}
+  - component: {fileID: 8271082907504100330}
   m_Layer: 0
   m_Name: Food_PictureFrameHorizontal
   m_TagString: Untagged
@@ -704,6 +705,39 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 34e0461a4939d3b4fbdf706bbd80108c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &6869797126134925673
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6171336386900079486}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5013e479b0974cb4b851ed6c20361c2d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!65 &8271082907504100330
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6171336386900079486}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 5.0471077, y: 5.735575, z: 3.932246}
+  m_Center: {x: -0.011186765, y: 3.2030132, z: 1.4661226}
 --- !u!1 &6599442537872259723
 GameObject:
   m_ObjectHideFlags: 0
