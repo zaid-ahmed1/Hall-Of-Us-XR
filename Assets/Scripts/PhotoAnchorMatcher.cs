@@ -247,24 +247,28 @@ public class PhotoAnchorMatcher : MonoBehaviour
         
         Debug.Log($"Trying to match anchor '{anchorObject.name}' (tag: '{anchorTag}', vertical: {isVerticalAnchor})");
 
-        // Find photos that match this anchor's tag and orientation, prioritizing new ones
+        // Get list of photo IDs already assigned to existing anchors
+        HashSet<string> assignedPhotoIds = GetAssignedPhotoIds();
+
+        // Find photos that match this anchor's tag and orientation, excluding already assigned ones
         var matchingPhotos = photoManager.photos
             .Where(p => {
                 string firstTag = GetFirstTag(p.tags);
                 return !string.IsNullOrEmpty(firstTag) && 
                        firstTag.Equals(anchorTag, System.StringComparison.OrdinalIgnoreCase) &&
-                       p.is_vertical == isVerticalAnchor;
+                       p.is_vertical == isVerticalAnchor &&
+                       !assignedPhotoIds.Contains(p.id); // Exclude already assigned photos
             })
             .OrderBy(p => photoManager.IsNewThisSession(p.id) ? 0 : 1) // New photos first
             .ToList();
 
         if (matchingPhotos.Count == 0)
         {
-            Debug.LogWarning($"No photos found matching tag '{anchorTag}' and orientation '{(isVerticalAnchor ? "vertical" : "horizontal")}'");
+            Debug.LogWarning($"No unassigned photos found matching tag '{anchorTag}' and orientation '{(isVerticalAnchor ? "vertical" : "horizontal")}'. Total assigned photos: {assignedPhotoIds.Count}");
             return false;
         }
 
-        // Try to match with the first (newest/best) matching photo
+        // Try to match with the first available unassigned photo
         Photo photoToMatch = matchingPhotos[0];
         
         bool textSuccess = UpdateAnchorText(anchorObject, anchorTag);
@@ -274,7 +278,7 @@ public class PhotoAnchorMatcher : MonoBehaviour
         if (textSuccess || imageSuccess || plaqueSuccess)
         {
             string newSessionIndicator = photoManager.IsNewThisSession(photoToMatch.id) ? " [NEW THIS SESSION]" : "";
-            Debug.Log($"Successfully matched new anchor '{anchorObject.name}' with photo '{photoToMatch.filename}'{newSessionIndicator} (Text: {textSuccess}, Image: {imageSuccess}, Plaque: {plaqueSuccess})");
+            Debug.Log($"Successfully matched new anchor '{anchorObject.name}' with photo '{photoToMatch.filename}'{newSessionIndicator} (Text: {textSuccess}, Image: {imageSuccess}, Plaque: {plaqueSuccess}). {matchingPhotos.Count - 1} other matching photos available.");
             return true;
         }
         else
@@ -282,6 +286,78 @@ public class PhotoAnchorMatcher : MonoBehaviour
             Debug.LogWarning($"Failed to update anchor '{anchorObject.name}' with photo '{photoToMatch.filename}'");
             return false;
         }
+    }
+
+    // Helper method to get all photo IDs currently assigned to anchors in the scene
+    private HashSet<string> GetAssignedPhotoIds()
+    {
+        HashSet<string> assignedIds = new HashSet<string>();
+        
+        // Find all spatial anchors in the scene
+        OVRSpatialAnchor[] allAnchors = FindObjectsOfType<OVRSpatialAnchor>();
+        
+        foreach (var anchor in allAnchors)
+        {
+            // Skip preview objects (they have parents)
+            if (anchor.transform.parent != null) continue;
+            
+            // Try to extract photo ID from the anchor's assigned content
+            string photoId = GetPhotoIdFromAnchor(anchor.gameObject);
+            if (!string.IsNullOrEmpty(photoId))
+            {
+                assignedIds.Add(photoId);
+            }
+        }
+        
+        Debug.Log($"Found {assignedIds.Count} photos currently assigned to anchors: {string.Join(", ", assignedIds)}");
+        return assignedIds;
+    }
+    
+    // Helper method to extract photo ID from an anchor's assigned content
+    private string GetPhotoIdFromAnchor(GameObject anchorObject)
+    {
+        // Look for PictureRender child to get the texture
+        Transform pictureRenderTransform = FindChildByName(anchorObject.transform, "PictureRender");
+        
+        if (pictureRenderTransform != null)
+        {
+            Renderer renderer = pictureRenderTransform.GetComponent<Renderer>();
+            if (renderer != null && renderer.material != null)
+            {
+                Texture texture = null;
+                
+                // Try to get texture from material
+                if (renderer.material.HasProperty("_BaseMap"))
+                {
+                    texture = renderer.material.GetTexture("_BaseMap");
+                }
+                else if (renderer.material.HasProperty("_MainTex"))
+                {
+                    texture = renderer.material.GetTexture("_MainTex");
+                }
+                
+                if (texture != null)
+                {
+                    // Find matching photo by comparing against S3 file paths
+                    foreach (var photo in photoManager.photos)
+                    {
+                        string localPath = s3Manager.GetLocalPathForPhoto(photo);
+                        if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+                        {
+                            // Check if this texture was loaded from this photo's file
+                            // (This is a simplified check - in a more robust system you'd store metadata)
+                            // For now, we'll use texture name if it contains the photo ID
+                            if (texture.name.Contains(photo.id) || localPath.Contains(texture.name))
+                            {
+                                return photo.id;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return null; // No photo ID found
     }
     
     // Helper method to manually trigger matching from other scripts
