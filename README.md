@@ -55,3 +55,4 @@ Hall of Us lets users place **persistent picture frames** in their environment. 
 
 ## 🌐 Integration  
 Works with a companion **web platform** where users can upload + tag photos, enabling **collaborative memory sharing** across physical + digital spaces.  
+https://github.com/reeyank/hall-of-us
