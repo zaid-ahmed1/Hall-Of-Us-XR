@@ -7087,8 +7087,10 @@ MonoBehaviour:
   anchorPrefabs:
   - {fileID: 7785661821836058641, guid: 300dd72cede8b5f42acb03589890af67, type: 3}
   - {fileID: 2736713902353324878, guid: 7e3a2f8d158b59648a4724a73ae4f4ce, type: 3}
-  - {fileID: 7785661821836058641, guid: 4a8faaad272d4a345bdfcf8e93729b62, type: 3}
-  - {fileID: 7785661821836058641, guid: 787f736f66948a24f8583877748b1f76, type: 3}
+  - {fileID: 2079485041532487634, guid: 4a8faaad272d4a345bdfcf8e93729b62, type: 3}
+  - {fileID: 9079200315806382143, guid: 2287efe487687d3488e8489370d5d706, type: 3}
+  - {fileID: 4343321938995821225, guid: 787f736f66948a24f8583877748b1f76, type: 3}
+  - {fileID: 5883930847567760086, guid: 405db1b52da467848995b53ead068f23, type: 3}
   tagDisplayText: {fileID: 13842193}
 --- !u!4 &1399735101
 Transform:
@@ -8051,6 +8053,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d742724a0c8fa9a41ac16f75aab830ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  updateCheckInterval: 30
   photoManager: {fileID: 1864518194}
   downloadAllImages: 1
 --- !u!1 &1546460662
@@ -9898,6 +9901,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   photos: []
+  s3Manager: {fileID: 0}
+  photoAnchorMatcher: {fileID: 0}
+  useManualUpdates: 1
+  refreshInterval: 15
 --- !u!4 &1864518195
 Transform:
   m_ObjectHideFlags: 0

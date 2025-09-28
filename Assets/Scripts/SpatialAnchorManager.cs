@@ -257,14 +257,14 @@ public class SpatialAnchorManager : MonoBehaviour
         if (string.IsNullOrEmpty(anchorName))
             return "";
     
-        // Find the first asterisk and return everything before it
-        int asteriskIndex = anchorName.IndexOf('*');
+        // Find the first underscre and return everything before it
+        int asteriskIndex = anchorName.IndexOf('_');
         if (asteriskIndex > 0)
         {
             return anchorName.Substring(0, asteriskIndex);
         }
     
-        // If no asterisk found, return the whole name
+        // If no underscore found, return the whole name
         return anchorName;
     }
 

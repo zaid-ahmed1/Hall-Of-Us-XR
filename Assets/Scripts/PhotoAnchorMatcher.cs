@@ -52,6 +52,75 @@ public class PhotoAnchorMatcher : MonoBehaviour
                photoManager.photos.Count > 0;
     }
     
+    // NEW METHOD: Prioritized matching for live demos
+    public void TriggerPrioritizedMatching(List<string> priorityPhotoIds)
+    {
+        if (photoManager == null || photoManager.photos == null || photoManager.photos.Count == 0)
+        {
+            Debug.LogWarning("No photos available for prioritized matching!");
+            return;
+        }
+        
+        Debug.Log($"Starting prioritized photo-anchor matching with {priorityPhotoIds.Count} priority photos...");
+        MatchPhotosToAnchorsWithPriority(priorityPhotoIds);
+    }
+    
+    private void MatchPhotosToAnchorsWithPriority(List<string> priorityPhotoIds)
+    {
+        // Sort photos: priority photos first, then the rest
+        var priorityPhotos = photoManager.photos
+            .Where(p => priorityPhotoIds.Contains(p.id))
+            .ToList();
+            
+        var regularPhotos = photoManager.photos
+            .Where(p => !priorityPhotoIds.Contains(p.id))
+            .ToList();
+        
+        // Combine with priority photos first
+        var sortedPhotos = priorityPhotos.Concat(regularPhotos).ToList();
+        
+        Debug.Log($"Prioritized matching order: {priorityPhotos.Count} priority photos, then {regularPhotos.Count} regular photos");
+        
+        int matchedCount = 0;
+        HashSet<GameObject> usedAnchors = new HashSet<GameObject>(); // Track used anchors
+        
+        foreach (Photo photo in sortedPhotos)
+        {
+            string firstTag = GetFirstTag(photo.tags);
+            
+            if (string.IsNullOrEmpty(firstTag))
+            {
+                Debug.LogWarning($"Photo {photo.filename} has no valid tags, skipping...");
+                continue;
+            }
+            
+            GameObject anchorObject = FindUnusedAnchorByTagAndOrientation(firstTag, photo.is_vertical, usedAnchors);
+            
+            if (anchorObject != null)
+            {
+                bool textSuccess = UpdateAnchorText(anchorObject, firstTag);
+                bool imageSuccess = UpdateAnchorImage(anchorObject, photo);
+                bool plaqueSuccess = UpdateAnchorPlaque(anchorObject, photo);
+                
+                if (textSuccess || imageSuccess || plaqueSuccess)
+                {
+                    usedAnchors.Add(anchorObject); // Mark this anchor as used
+                    matchedCount++;
+                    
+                    string priorityIndicator = priorityPhotoIds.Contains(photo.id) ? " [PRIORITY]" : "";
+                    Debug.Log($"Matched photo '{photo.filename}'{priorityIndicator} with tag '{firstTag}' to anchor '{anchorObject.name}' (Text: {textSuccess}, Image: {imageSuccess}, Plaque: {plaqueSuccess})");
+                }
+            }
+            else
+            {
+                string priorityIndicator = priorityPhotoIds.Contains(photo.id) ? " [PRIORITY]" : "";
+                Debug.LogWarning($"No available anchor found for tag '{firstTag}'{priorityIndicator} and orientation '{(photo.is_vertical ? "vertical" : "horizontal")}' from photo '{photo.filename}' (may be all used)");
+            }
+        }
+        
+        Debug.Log($"Prioritized matching complete! Successfully matched {matchedCount} photos to anchors.");
+    }
+    
     [ContextMenu("Match Photos to Anchors")]
     public void MatchPhotosToAnchors()
     {
@@ -88,12 +157,12 @@ public class PhotoAnchorMatcher : MonoBehaviour
                 {
                     usedAnchors.Add(anchorObject); // Mark this anchor as used
                     matchedCount++;
-                    Debug.Log($"✅ Matched photo '{photo.filename}' with tag '{firstTag}' to anchor '{anchorObject.name}' (Text: {textSuccess}, Image: {imageSuccess}, Plaque: {plaqueSuccess})");
+                    Debug.Log($"Matched photo '{photo.filename}' with tag '{firstTag}' to anchor '{anchorObject.name}' (Text: {textSuccess}, Image: {imageSuccess}, Plaque: {plaqueSuccess})");
                 }
             }
             else
             {
-                Debug.LogWarning($"❌ No available anchor found for tag '{firstTag}' and orientation '{(photo.is_vertical ? "vertical" : "horizontal")}' from photo '{photo.filename}' (may be all used)");
+                Debug.LogWarning($"No available anchor found for tag '{firstTag}' and orientation '{(photo.is_vertical ? "vertical" : "horizontal")}' from photo '{photo.filename}' (may be all used)");
             }
         }
         
@@ -316,7 +385,7 @@ public class PhotoAnchorMatcher : MonoBehaviour
                 // Apply the sprite to the UI Image component
                 imageComponent.sprite = sprite;
                 
-                Debug.Log($"✅ Applied sprite '{filename}' to UI Image component");
+                Debug.Log($"Applied sprite '{filename}' to UI Image component");
                 return true;
             }
             else
@@ -364,14 +433,14 @@ public class PhotoAnchorMatcher : MonoBehaviour
                         // Plaque images are 800x400 (2:1 ratio) - adjust tiling to fit properly
                         material.SetTextureScale("_BaseMap", new Vector2(1f, 0.5f)); // Scale Y to fit 2:1 ratio
                         material.SetTextureOffset("_BaseMap", new Vector2(0f, 0.25f)); // Center vertically
-                        Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property (plaque material with 2:1 ratio)");
+                        Debug.Log($"Applied texture '{filename}' to _BaseMap property (plaque material with 2:1 ratio)");
                     }
                     else
                     {
                         // For regular photos, reset tiling and offset to show full image
                         material.SetTextureScale("_BaseMap", Vector2.one); // Show full image
                         material.SetTextureOffset("_BaseMap", Vector2.zero); // No offset
-                        Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property (photo - full image display)");
+                        Debug.Log($"Applied texture '{filename}' to _BaseMap property (photo - full image display)");
                     }
                     return true;
                 }
@@ -385,14 +454,14 @@ public class PhotoAnchorMatcher : MonoBehaviour
                         // Plaque images are 800x400 (2:1 ratio) - adjust tiling to fit properly
                         material.SetTextureScale("_MainTex", new Vector2(1f, 0.5f)); // Scale Y to fit 2:1 ratio
                         material.SetTextureOffset("_MainTex", new Vector2(0f, 0.25f)); // Center vertically
-                        Debug.Log($"✅ Applied texture '{filename}' to _MainTex property (plaque material with 2:1 ratio)");
+                        Debug.Log($"Applied texture '{filename}' to _MainTex property (plaque material with 2:1 ratio)");
                     }
                     else
                     {
                         // For regular photos, reset tiling and offset to show full image
                         material.SetTextureScale("_MainTex", Vector2.one); // Show full image
                         material.SetTextureOffset("_MainTex", Vector2.zero); // No offset
-                        Debug.Log($"✅ Applied texture '{filename}' to _MainTex property (photo - full image display)");
+                        Debug.Log($"Applied texture '{filename}' to _MainTex property (photo - full image display)");
                     }
                     return true;
                 }
