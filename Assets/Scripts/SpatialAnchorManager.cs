@@ -43,44 +43,64 @@ public class SpatialAnchorManager : MonoBehaviour
         LoadSavedAnchors();
     }
 
+    private bool inAnchorMode = false;
+
     private void Update()
     {
-    // Cycle through prefabs using the X button
-        if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
+        // Get thumbstick Y axis value
+        float thumbstickY = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch).y;
+
+        // Enter anchor mode if stick is held downward
+        if (thumbstickY < -0.7f)
         {
-            selectedPrefabIndex = (selectedPrefabIndex + 1) % anchorPrefabs.Length;
-            Debug.Log("Selected prefab: " + selectedPrefabIndex);
+            if (!inAnchorMode)
+            {
+                inAnchorMode = true;
+                if (previewObject == null) SpawnPreview();
+                previewObject.SetActive(true); // Show preview
+                Debug.Log("Entered Anchor Mode (stick down)");
+            }
 
-            Destroy(previewObject);
-            SpawnPreview();
+            // Only allow anchor interactions when in anchor mode
+            // Cycle through prefabs (X button)
+            if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
+            {
+                selectedPrefabIndex = (selectedPrefabIndex + 1) % anchorPrefabs.Length;
+                Debug.Log("Selected prefab: " + selectedPrefabIndex);
+
+                Destroy(previewObject);
+                SpawnPreview();
+            }
+
+            // Place anchor (Trigger)
+            if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
+            {
+                PlaceAnchor();
+            }
+
+            // Delete last anchor (B / Button.Two)
+            if (OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch))
+            {
+                DeleteLastAnchor();
+            }
+
+            // Clear all anchors (Grip)
+            if (OVRInput.GetDown(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.RTouch))
+            {
+                ClearAllAnchors();
+            }
         }
-
-
-        // Place anchor
-        if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
+        else
         {
-            PlaceAnchor();
+            // Exit anchor mode if stick is released
+            if (inAnchorMode)
+            {
+                inAnchorMode = false;
+                if (previewObject != null) 
+                    previewObject.SetActive(false); // Hide preview
+                Debug.Log("Exited Anchor Mode");
+            }
         }
-
-
-        // Delete last anchor
-        if (OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch))
-        {
-            DeleteLastAnchor();
-        }
-
-        // Clear all anchors
-        if (OVRInput.GetDown(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.RTouch))
-        {
-            ClearAllAnchors();
-        }
-
-        // Load anchors
-        if (OVRInput.GetDown(OVRInput.Button.PrimaryThumbstick, OVRInput.Controller.RTouch))
-        {
-            LoadSavedAnchors();
-        }
-        
     }
 
 

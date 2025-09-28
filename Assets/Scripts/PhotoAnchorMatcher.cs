@@ -125,7 +125,15 @@ public class PhotoAnchorMatcher : MonoBehaviour
                 // Verify it's actually a spatial anchor and not already used
                 if (obj.GetComponent<OVRSpatialAnchor>() != null && !usedAnchors.Contains(obj))
                 {
-                    matchingAnchors.Add(obj);
+                    // Skip preview objects (they have parents, real anchors don't)
+                    if (obj.transform.parent == null)
+                    {
+                        matchingAnchors.Add(obj);
+                    }
+                    else
+                    {
+                        Debug.Log($"Skipping preview object: {obj.name} (has parent: {obj.transform.parent.name})");
+                    }
                 }
             }
         }

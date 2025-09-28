@@ -438,7 +438,7 @@ GameObject:
   - component: {fileID: 7867419405682439489}
   - component: {fileID: 7785661821836058641}
   m_Layer: 0
-  m_Name: Testing_PictureFrameHorizontal
+  m_Name: Food_PictureFrameHorizontal
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
