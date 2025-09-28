@@ -82,12 +82,13 @@ public class PhotoAnchorMatcher : MonoBehaviour
             {
                 bool textSuccess = UpdateAnchorText(anchorObject, firstTag);
                 bool imageSuccess = UpdateAnchorImage(anchorObject, photo);
+                bool plaqueSuccess = UpdateAnchorPlaque(anchorObject, photo);
                 
-                if (textSuccess || imageSuccess)
+                if (textSuccess || imageSuccess || plaqueSuccess)
                 {
                     usedAnchors.Add(anchorObject); // Mark this anchor as used
                     matchedCount++;
-                    Debug.Log($"✅ Matched photo '{photo.filename}' with tag '{firstTag}' to anchor '{anchorObject.name}' (Text: {textSuccess}, Image: {imageSuccess})");
+                    Debug.Log($"✅ Matched photo '{photo.filename}' with tag '{firstTag}' to anchor '{anchorObject.name}' (Text: {textSuccess}, Image: {imageSuccess}, Plaque: {plaqueSuccess})");
                 }
             }
             else
@@ -244,6 +245,87 @@ public class PhotoAnchorMatcher : MonoBehaviour
         return LoadAndApplyTexture(renderer, localImagePath, photo.filename);
     }
     
+    private bool UpdateAnchorPlaque(GameObject anchorObject, Photo photo)
+    {
+        // Find the Canvas child, then the Image child within it
+        Transform canvasTransform = FindChildByName(anchorObject.transform, "Canvas");
+        
+        if (canvasTransform == null)
+        {
+            Debug.LogWarning($"No 'Canvas' child found on anchor '{anchorObject.name}'");
+            return false;
+        }
+        
+        Transform imageTransform = FindChildByName(canvasTransform, "Image");
+        
+        if (imageTransform == null)
+        {
+            Debug.LogWarning($"No 'Image' child found in Canvas of anchor '{anchorObject.name}'");
+            return false;
+        }
+        
+        // Get the UI Image component
+        UnityEngine.UI.Image imageComponent = imageTransform.GetComponent<UnityEngine.UI.Image>();
+        if (imageComponent == null)
+        {
+            Debug.LogWarning($"No Image component found on 'Image' child of anchor '{anchorObject.name}'");
+            return false;
+        }
+        
+        // Check if photo has a plaque_id
+        if (string.IsNullOrEmpty(photo.plaque_id))
+        {
+            Debug.LogWarning($"Photo '{photo.filename}' has no plaque_id, skipping plaque update");
+            return false;
+        }
+        
+        // Get the local file path for the plaque using plaque_id
+        string localPlaquePath = s3Manager.GetLocalPathForPlaqueId(photo.plaque_id);
+        if (string.IsNullOrEmpty(localPlaquePath) || !File.Exists(localPlaquePath))
+        {
+            Debug.LogWarning($"Plaque file not found for plaque_id '{photo.plaque_id}' at path: {localPlaquePath}");
+            return false;
+        }
+        
+        // Load and apply the texture as a sprite to the UI Image
+        return LoadAndApplyUISprite(imageComponent, localPlaquePath, photo.plaque_id);
+    }
+    
+    private bool LoadAndApplyUISprite(UnityEngine.UI.Image imageComponent, string imagePath, string filename)
+    {
+        try
+        {
+            // Read the image file as bytes
+            byte[] imageData = File.ReadAllBytes(imagePath);
+            
+            // Create a new texture
+            Texture2D texture = new Texture2D(2, 2); // Size will be overridden by LoadImage
+            
+            // Load the image data into the texture
+            if (texture.LoadImage(imageData))
+            {
+                // Create a sprite from the texture for UI use
+                Sprite sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                
+                // Apply the sprite to the UI Image component
+                imageComponent.sprite = sprite;
+                
+                Debug.Log($"✅ Applied sprite '{filename}' to UI Image component");
+                return true;
+            }
+            else
+            {
+                Debug.LogError($"Failed to load image data for '{filename}'");
+                return false;
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error loading sprite for '{filename}': {e.Message}");
+            return false;
+        }
+    }
+    
     private bool LoadAndApplyTexture(Renderer renderer, string imagePath, string filename)
     {
         try
@@ -260,23 +342,50 @@ public class PhotoAnchorMatcher : MonoBehaviour
                 // Apply to material - try common base map property names
                 Material material = renderer.material;
                 
+                // Check if this is a plaque material and apply appropriate tiling/offset
+                bool isPlaqueMaterial = material.name.ToLower().Contains("plaque");
+                
                 // Try URP/HDRP base map first
                 if (material.HasProperty("_BaseMap"))
                 {
                     material.SetTexture("_BaseMap", texture);
-                    Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property");
+                    
+                    // Apply different tiling/offset for plaques if needed
+                    if (isPlaqueMaterial)
+                    {
+                        // Plaque images are 800x400 (2:1 ratio) - adjust tiling to fit properly
+                        material.SetTextureScale("_BaseMap", new Vector2(1f, 0.5f)); // Scale Y to fit 2:1 ratio
+                        material.SetTextureOffset("_BaseMap", new Vector2(0f, 0.25f)); // Center vertically
+                        Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property (plaque material with 2:1 ratio)");
+                    }
+                    else
+                    {
+                        Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property (standard material)");
+                    }
                     return true;
                 }
                 // Try standard/builtin pipeline main texture
                 else if (material.HasProperty("_MainTex"))
                 {
                     material.SetTexture("_MainTex", texture);
-                    Debug.Log($"✅ Applied texture '{filename}' to _MainTex property");
+                    
+                    // Apply different tiling/offset for plaques if needed
+                    if (isPlaqueMaterial)
+                    {
+                        // Plaque images are 800x400 (2:1 ratio) - adjust tiling to fit properly
+                        material.SetTextureScale("_MainTex", new Vector2(1f, 0.5f)); // Scale Y to fit 2:1 ratio
+                        material.SetTextureOffset("_MainTex", new Vector2(0f, 0.25f)); // Center vertically
+                        Debug.Log($"✅ Applied texture '{filename}' to _MainTex property (plaque material with 2:1 ratio)");
+                    }
+                    else
+                    {
+                        Debug.Log($"✅ Applied texture '{filename}' to _MainTex property (standard material)");
+                    }
                     return true;
                 }
                 else
                 {
-                    Debug.LogWarning($"Material on PictureRender doesn't have _BaseMap or _MainTex property.");
+                    Debug.LogWarning($"Material on {(isPlaqueMaterial ? "PlaqueRender" : "PictureRender")} doesn't have _BaseMap or _MainTex property.");
                     #if UNITY_EDITOR
                     // Debug log available properties (Editor only)
                     var shader = material.shader;

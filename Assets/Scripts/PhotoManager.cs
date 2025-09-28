@@ -13,6 +13,8 @@ public class Photo
     public string tags;
     public string user_id;
     public int likes;
+    public string plaque_id;
+    public bool is_vertical;
 }
 
 [System.Serializable]
