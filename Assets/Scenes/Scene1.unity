@@ -7091,9 +7091,9 @@ MonoBehaviour:
   - {fileID: 9079200315806382143, guid: 2287efe487687d3488e8489370d5d706, type: 3}
   - {fileID: 4343321938995821225, guid: 787f736f66948a24f8583877748b1f76, type: 3}
   - {fileID: 5883930847567760086, guid: 405db1b52da467848995b53ead068f23, type: 3}
-  photoManager: {fileID: 0}
-  s3Manager: {fileID: 0}
-  photoAnchorMatcher: {fileID: 0}
+  photoManager: {fileID: 1864518194}
+  s3Manager: {fileID: 1541653931}
+  photoAnchorMatcher: {fileID: 1864518196}
   autoMatchNewAnchors: 1
   tagDisplayText: {fileID: 13842193}
 --- !u!4 &1399735101
