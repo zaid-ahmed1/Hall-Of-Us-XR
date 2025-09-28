@@ -336,42 +336,94 @@ public class PhotoAnchorMatcher : MonoBehaviour
     {
         try
         {
+            // Read the image file as bytes
             byte[] imageData = File.ReadAllBytes(imagePath);
-            Texture2D texture = new Texture2D(2, 2);
-        
+            
+            // Create a new texture
+            Texture2D texture = new Texture2D(2, 2); // Size will be overridden by LoadImage
+            
+            // Load the image data into the texture
             if (texture.LoadImage(imageData))
             {
+                // Apply to material - try common base map property names
                 Material material = renderer.material;
-            
+                
+                // Check if this is a plaque material
+                bool isPlaqueMaterial = material.name.ToLower().Contains("plaque");
+                
+                // Try URP/HDRP base map first
                 if (material.HasProperty("_BaseMap"))
                 {
-                    material.SetTexture("_BaseMap", texture);
-                
-                    // Reset tiling and offset to show full image
+                    material.SetTexture("_BaseMap", null); // Clear existing texture first
+                    material.SetTexture("_BaseMap", texture); // Then apply new one
                     material.SetTextureScale("_BaseMap", Vector2.one);
                     material.SetTextureOffset("_BaseMap", Vector2.zero);
-                
-                    Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property with proper scaling");
+                    
+                    if (isPlaqueMaterial)
+                    {
+                        // Plaque images are 800x400 (2:1 ratio) - adjust tiling to fit properly
+                        material.SetTextureScale("_BaseMap", new Vector2(1f, 0.5f)); // Scale Y to fit 2:1 ratio
+                        material.SetTextureOffset("_BaseMap", new Vector2(0f, 0.25f)); // Center vertically
+                        Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property (plaque material with 2:1 ratio)");
+                    }
+                    else
+                    {
+                        // For regular photos, reset tiling and offset to show full image
+                        material.SetTextureScale("_BaseMap", Vector2.one); // Show full image
+                        material.SetTextureOffset("_BaseMap", Vector2.zero); // No offset
+                        Debug.Log($"✅ Applied texture '{filename}' to _BaseMap property (photo - full image display)");
+                    }
                     return true;
                 }
+                // Try standard/builtin pipeline main texture
                 else if (material.HasProperty("_MainTex"))
                 {
                     material.SetTexture("_MainTex", texture);
-                
-                    // Reset tiling and offset to show full image
-                    material.SetTextureScale("_MainTex", Vector2.one);
-                    material.SetTextureOffset("_MainTex", Vector2.zero);
-                
-                    Debug.Log($"✅ Applied texture '{filename}' to _MainTex property with proper scaling");
+                    
+                    if (isPlaqueMaterial)
+                    {
+                        // Plaque images are 800x400 (2:1 ratio) - adjust tiling to fit properly
+                        material.SetTextureScale("_MainTex", new Vector2(1f, 0.5f)); // Scale Y to fit 2:1 ratio
+                        material.SetTextureOffset("_MainTex", new Vector2(0f, 0.25f)); // Center vertically
+                        Debug.Log($"✅ Applied texture '{filename}' to _MainTex property (plaque material with 2:1 ratio)");
+                    }
+                    else
+                    {
+                        // For regular photos, reset tiling and offset to show full image
+                        material.SetTextureScale("_MainTex", Vector2.one); // Show full image
+                        material.SetTextureOffset("_MainTex", Vector2.zero); // No offset
+                        Debug.Log($"✅ Applied texture '{filename}' to _MainTex property (photo - full image display)");
+                    }
                     return true;
                 }
+                else
+                {
+                    Debug.LogWarning($"Material on {(isPlaqueMaterial ? "PlaqueRender" : "PictureRender")} doesn't have _BaseMap or _MainTex property.");
+                    #if UNITY_EDITOR
+                    // Debug log available properties (Editor only)
+                    var shader = material.shader;
+                    for (int i = 0; i < ShaderUtil.GetPropertyCount(shader); i++)
+                    {
+                        if (ShaderUtil.GetPropertyType(shader, i) == ShaderUtil.ShaderPropertyType.TexEnv)
+                        {
+                            Debug.Log($"  Available texture property: {ShaderUtil.GetPropertyName(shader, i)}");
+                        }
+                    }
+                    #endif
+                    return false;
+                }
+            }
+            else
+            {
+                Debug.LogError($"Failed to load image data for '{filename}'");
+                return false;
             }
         }
         catch (System.Exception e)
         {
             Debug.LogError($"Error loading texture for '{filename}': {e.Message}");
+            return false;
         }
-        return false;
     }
     
     private Transform FindChildByName(Transform parent, string childName)
